@@ -26,8 +26,8 @@ Follow the steps below to set up and run the bot.
 
 #### 1. Clone the Repository
 ```bash
-git clone <repository_url>
-cd <repository_name>
+git clone https://github.com/Anzywiz/InitVerse-bot.git
+cd InitVerse-bot
 ```
 
 #### 2. Create and Activate a Virtual Environment
