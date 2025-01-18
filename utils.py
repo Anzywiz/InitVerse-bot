@@ -307,7 +307,7 @@ class INISwapper:
                 raise e
 
 
-def swap_ini(private_key):
+async def swap_ini(private_key):
     # Your testnet network URL
 
     # Get sender address from private key
@@ -320,14 +320,14 @@ def swap_ini(private_key):
     amount = random.randint(1, 100)
     amount_ini = Web3.to_wei(Decimal(f'0.0000001{amount}'), 'ether')
 
-    result = swapper.swap_usdt_to_ini(amount_ini)
+    result = await swapper.swap_usdt_to_ini(amount_ini)
     if dict(result)['status'] == 1:
         logging.info(
             f"Account {short_address(wallet_address)}: USDT -> INI Swap successful!")
         return
     else:
         logging.error(f"Account {short_address(wallet_address)}: USDT -> INI Swap failed")
-        result = swapper.swap_ini_to_usdt(amount_ini)
+        result = await swapper.swap_ini_to_usdt(amount_ini)
         if dict(result)['status'] == 1:
             logging.info(
                 f"Account {short_address(wallet_address)}: INI -> USDT Swap successful!")
@@ -463,7 +463,7 @@ async def swap_tokens(private_key):
             time_left = get_time_left(swap_time) + (10 * 60)
 
             if time_left < 0:
-                swap_ini(private_key)
+                await swap_ini(private_key)  # it takes time to return response
                 await asyncio.sleep(30)  # pause for swap to update
                 swap_count, swap_time = get_swap_info(wallet_address)
                 logging.info(f"Account {abridged_address}: Swap Count {swap_count}")
