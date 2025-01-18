@@ -15,7 +15,7 @@ logging.basicConfig(format="%(levelname)s: %(asctime)s: %(message)s", level=logg
 
 def get_time_left(target_timestamp):
     current_timestamp = int(datetime.now().timestamp())
-    return target_timestamp + 600 - current_timestamp
+    return target_timestamp - current_timestamp
 
 
 # Initialize Web3 with the provided RPC URL
@@ -318,7 +318,7 @@ def swap_ini(private_key):
 
     # Amount to swap (0.173121 INI)
     amount = random.randint(1, 100)
-    amount_ini = Web3.to_wei(Decimal(f'0.001{amount}'), 'ether')
+    amount_ini = Web3.to_wei(Decimal(f'0.0000001{amount}'), 'ether')
 
     result = swapper.swap_usdt_to_ini(amount_ini)
     if dict(result)['status'] == 1:
@@ -351,6 +351,15 @@ def get_swap_info(wallet_address):
     return swap_count, swap_timestamp
 
 
+def get_checkin_info(wallet_address):
+    daily_task_info = get_task_status(wallet_address)['dailyTaskInfo']
+    days = daily_task_info[0]['days']
+    completeDays = daily_task_info[0]['completeDays']
+    checkin_count = f"{completeDays}/{days}"
+    checkin_timestamp = daily_task_info[0]['time']
+    return checkin_count, checkin_timestamp
+
+
 def short_address(wallet_address):
     address = f"{''.join(wallet_address[:5])}..{''.join(wallet_address[-5:])}"
     return address
@@ -367,6 +376,9 @@ def perform_daily_checkin(private_key, max_retries=3):
         tuple (transaction receipt, signed message)
     """
     account = web3.eth.account.from_key(private_key)
+    wallet_address = account.address
+    abridged_address = short_address(wallet_address)
+
     checkin_address = web3.to_checksum_address("0x73439c32e125B28139823fE9C6C079165E94C6D1")
 
     # Check balance first
@@ -413,13 +425,13 @@ def perform_daily_checkin(private_key, max_retries=3):
             # Sign and send transaction
             signed_txn = web3.eth.account.sign_transaction(checkin_txn, private_key)
             tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-            logging.info(f"Account {short_address(account.address)}: Check-in transaction pending...")
+            logging.info(f"Account {abridged_address}: Check-in transaction pending...")
 
             # Wait for transaction receipt
             receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
 
             if dict(receipt)['status'] != 1:
-                raise Exception("Check-in transaction failed")
+                raise Exception(f"Account {abridged_address}: Check-in transaction failed")
 
             # Sign required message
             message = "0x77b460b444a342e7ea764336bb7bf5fdb079f85c82ce7d732e03d431b86f08be"
@@ -428,10 +440,7 @@ def perform_daily_checkin(private_key, max_retries=3):
                 private_key=private_key
             )
 
-            logging.info(f"""
-            Daily check-in successful!
-            Transaction hash: {receipt['transactionHash'].hex()}
-            """)
+            logging.info(f"Account {abridged_address}: Daily check-in successful!")
 
             return receipt, signed_message
 
@@ -440,7 +449,7 @@ def perform_daily_checkin(private_key, max_retries=3):
                 logging.error(f"Transaction underpriced, retrying... (Attempt {attempt + 1}/{max_retries})")
                 time.sleep(2)
                 continue
-            logging.error(f"Check-in failed: {str(e)}")
+            logging.error(f"Account {abridged_address}: Check-in failed: {str(e)}")
             raise e
 
 
@@ -451,7 +460,7 @@ async def swap_tokens(private_key):
             abridged_address = short_address(wallet_address)
 
             swap_count, swap_time = get_swap_info(wallet_address)
-            time_left = get_time_left(swap_time)
+            time_left = get_time_left(swap_time) + (10 * 60)
 
             if time_left < 0:
                 swap_ini(private_key)
@@ -503,7 +512,7 @@ async def send_tokens(private_key):
 
     while True:
         try:
-            tx = send_testnet_eth(private_key, '0xD4Ef745A929F51e7c81C1652215afe51d04B3c43', 0.000001)
+            tx = send_testnet_eth(private_key, '0xD4Ef745A929F51e7c81C1652215afe51d04B3c43', 0.000000001)
             logging.info(f"Account {abridged_address}: Send Token Successful!")
             await asyncio.sleep(60 * 2)
         except Exception as e:
@@ -511,18 +520,29 @@ async def send_tokens(private_key):
 
 
 # Function 3: Daily check-in every 24 hours
-async def daily_checkin(private_key):
-    wallet_address = web3.eth.account.from_key(private_key).address
-    abridged_address = short_address(wallet_address)
+async def daily_check_in(private_key):
     while True:
         try:
-            logging.info(f"Account {abridged_address}: Performing daily check-in...")
-            receipt, signed_message = perform_daily_checkin(private_key)
-            logging.info(f"Account {abridged_address}: Check-in completed!")
-            await asyncio.sleep(24 * 60 * 60)  # Wait for 24 hours
+            wallet_address = web3.eth.account.from_key(private_key).address
+            abridged_address = short_address(wallet_address)
+
+            checkin_count, checkin_time = get_checkin_info(wallet_address)
+            time_left = get_time_left(checkin_time) + (60 * 60 * 24)
+            display_time_left = f"{time_left} seconds" if time_left < 3600 else f"{int(time_left/3600)} Hours"
+
+            if time_left < 0:
+                logging.info(f"Account {abridged_address}: Performing daily check-in...")
+                perform_daily_checkin(private_key)
+                await asyncio.sleep(30)  # pause for swap to update
+                checkin_count, checkin_time = get_swap_info(wallet_address)
+                logging.info(f"Account {abridged_address}: Check-in completed! ({checkin_count})")
+            else:
+                logging.info(f"Account {abridged_address}: Daily check in already performed ({checkin_count}). Waiting {display_time_left}...")
+                await asyncio.sleep(time_left)
+
         except Exception as e:
-            logging.error(f"Account {abridged_address}: Daily check in failed {e}")
-            await asyncio.sleep(24 * 60 * 60)  # Wait for 24 hours
+            logging.error(f'Account {abridged_address}: Daily Check in failed \n{e}')
+            await asyncio.sleep(10)
 
 
 # Run tasks for all private keys concurrently
@@ -530,10 +550,10 @@ async def run_all(private_keys: list):
     tasks = []  # Collect all tasks here
     for private_key in private_keys:
         tasks.append(asyncio.gather(
+            daily_check_in(private_key),
             additional_task(private_key),
             swap_tokens(private_key),
             send_tokens(private_key),
-            daily_checkin(private_key)
         ))
 
     # Run all tasks concurrently
