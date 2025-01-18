@@ -468,7 +468,7 @@ async def swap_tokens(private_key):
                 swap_count, swap_time = get_swap_info(wallet_address)
                 logging.info(f"Account {abridged_address}: Swap Count {swap_count}")
             else:
-                logging.info(f"Account {abridged_address}: Waiting {time_left} seconds ...")
+                logging.info(f"Account {abridged_address}: Swap wait time: {time_left} seconds ...")
                 await asyncio.sleep(time_left)
 
         except Exception as e:
