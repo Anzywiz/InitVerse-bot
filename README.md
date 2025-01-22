@@ -9,7 +9,7 @@ A Python-based bot for interacting with the InitVerse testnet. Automate tasks li
 1. **Create an Account on InitVerse**
    - Visit [InitVerse Candy](https://candy.inichain.com/) and connect your wallet.
    - Link your social accounts and complete the "Start Here" task.
-   - Join the [miner pool](https://inichain.gitbook.io/initverseinichain/inichain/mining) the operating system of your choice.
+   - Join the [miner pool](https://inichain.gitbook.io/initverseinichain/inichain/mining) with the operating system of your choice.
    - Get INI test token from [faucet](https://faucet-testnet.inichain.com/).
 
 ### Setup
