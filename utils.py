@@ -70,16 +70,16 @@ def send_testnet_eth(private_key: str, receiver_address: str, amount_in_ether: f
             receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
             if receipt['status'] == 1:
-                logging.info(f"Transferred {amount_in_ether} INI to {receiver_address} successfully!")
+                logging.info(f"Account {short_address(sender_address)}: Transferred {amount_in_ether} INI to {receiver_address} successfully!")
                 return tx_hash.hex()  # Return transaction hash if successful
             else:
-                raise Exception("Transaction failed")
+                raise Exception(f"Account {short_address(sender_address)}: Transaction failed")
 
         except Exception as e:
-            logging.warning(f"Attempt {attempt}: Transaction failed with error: {str(e)}")
+            logging.warning(f"Account {short_address(sender_address)}: Transaction failed ({attempt}) with error: {str(e)}")
 
             if attempt < retries:
-                gas_price = int(gas_price * 1.1)  # Increase gas price by 10% for the next attempt
+                gas_price = int(gas_price * 1.5)  # Increase gas price by 10% for the next attempt
                 logging.info(f"Increasing gas price to {gas_price} for retry {attempt + 1}")
             else:
                 logging.error("Max retries reached. Transaction failed.")
@@ -240,7 +240,7 @@ class INISwapper:
                 nonce = self.web3.eth.get_transaction_count(self.account.address)
                 gas_price = self.get_gas_price_with_premium(premium=premium)
 
-                logging.info(f"Token path: {self.token2_address} -> {self.token1_address}")
+                # logging.info(f"Token path: {self.token2_address} -> {self.token1_address}")
 
                 swap_txn = self.router_contract.functions.swapExactTokensForTokens(
                     amount_usdt,
