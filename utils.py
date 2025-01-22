@@ -67,7 +67,7 @@ def send_testnet_eth(private_key: str, receiver_address: str, amount_in_ether: f
             tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
             # Wait for transaction receipt
-            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
 
             if receipt['status'] == 1:
                 logging.info(f"Account {short_address(sender_address)}: Transferred {amount_in_ether} INI to {receiver_address} successfully!")
@@ -216,7 +216,7 @@ class INISwapper:
 
         signed_txn = self.web3.eth.account.sign_transaction(approve_txn, self.account.key)
         tx_hash = self.web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        return self.web3.eth.wait_for_transaction_receipt(tx_hash)
+        return self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
 
     def swap_usdt_to_ini(self, amount_usdt, max_retries=3):
         """
@@ -260,7 +260,7 @@ class INISwapper:
 
                 wallet_address = self.account.address
                 logging.info(f"Account {short_address(wallet_address)}: Swap Transaction Pending swap_usdt_to_ini...")
-                receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+                receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
                 return receipt
             except Exception as e:
                 if "replacement transaction underpriced" in str(e):
@@ -285,7 +285,7 @@ class INISwapper:
         logging.info(
             f"Account {self.wallet_address}: Swapping {Web3.from_wei(amount_ini, 'ether')} INI -> {Web3.from_wei(min_usdt_out, 'ether')} USDT")
 
-        premium = 10
+        premium = 50
         for attempt in range(max_retries):
             try:
                 deadline = self.web3.eth.get_block('latest').timestamp + 600
@@ -311,7 +311,7 @@ class INISwapper:
                 tx_hash = self.web3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
                 logging.info(f"Account {short_address(self.wallet_address)}: Transaction Pending `swap_ini_to_usdt`...")
-                receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+                receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
                 return receipt
             except Exception as e:
                 if "replacement transaction underpriced" in str(e):
