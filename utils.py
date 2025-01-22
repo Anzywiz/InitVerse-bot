@@ -18,6 +18,13 @@ def get_time_left(target_timestamp):
     return target_timestamp - current_timestamp
 
 
+def generate_new_eth_address():
+    # Generate a new Ethereum account
+    account = Account.create()
+    # Return the address and private key
+    return account.address
+
+
 # Initialize Web3 with the provided RPC URL
 RPC_URL = 'https://rpc-testnet.inichain.com'
 web3 = Web3(Web3.HTTPProvider(RPC_URL))
@@ -27,45 +34,56 @@ if not web3.is_connected():
     raise ConnectionError("Failed to connect to testnet")
 
 
-def send_testnet_eth(private_key: str, receiver_address: str, amount_in_ether: float):
+def send_testnet_eth(private_key: str, receiver_address: str, amount_in_ether: float, retries: int = 3):
     """
-    Sends testnet ETH from a sender to a receiver.
+    Sends testnet ETH with retries, increasing gas price by 10% for each retry if sending fails.
 
     :param private_key: Sender's private key as a string
     :param receiver_address: Receiver's wallet address as a string
     :param amount_in_ether: Amount to send in Ether
-    :return: Transaction hash as a string
+    :param retries: Number of retries (default: 3)
+    :return: Transaction hash as a string if successful
     """
-    try:
-        # Get sender address from private key
-        sender_address = web3.eth.account.from_key(private_key).address
+    sender_address = web3.eth.account.from_key(private_key).address
+    amount_in_wei = web3.to_wei(amount_in_ether, 'ether')
 
-        # Convert Ether to Wei
-        amount_in_wei = web3.to_wei(amount_in_ether, 'ether')
+    nonce = web3.eth.get_transaction_count(sender_address, 'pending')
+    gas_price = web3.eth.gas_price  # Fetch the current gas price
 
-        # Build the transaction
-        transaction = {
-            'to': receiver_address,
-            'value': amount_in_wei,
-            'gas': 21000,  # Standard gas limit for ETH transfer
-            'gasPrice': web3.eth.gas_price,  # Set appropriate gas price `web3.to_wei('10', 'gwei')`
-            'nonce': web3.eth.get_transaction_count(sender_address),
-            'chainId': web3.eth.chain_id
-        }
+    for attempt in range(1, retries + 1):
+        try:
+            # Build the transaction
+            transaction = {
+                'to': receiver_address,
+                'value': amount_in_wei,
+                'gas': 100000,
+                'gasPrice': int(gas_price * 1.5),
+                'nonce': nonce,
+                'chainId': web3.eth.chain_id
+            }
 
-        # Sign the transaction
-        signed_tx = web3.eth.account.sign_transaction(transaction, private_key)
+            # Sign and send the transaction
+            signed_tx = web3.eth.account.sign_transaction(transaction, private_key)
+            tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
-        # Send the signed transaction
-        tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-        receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
-        if dict(receipt)['status'] == 1:
-            logging.info(f"Transferred {amount_in_ether} INI to {receiver_address} successfully!")
-        else:
-            raise Exception(f"Token transfer failed")
+            # Wait for transaction receipt
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
-    except Exception as e:
-        return f"An error occurred: {str(e)}"
+            if receipt['status'] == 1:
+                logging.info(f"Transferred {amount_in_ether} INI to {receiver_address} successfully!")
+                return tx_hash.hex()  # Return transaction hash if successful
+            else:
+                raise Exception("Transaction failed")
+
+        except Exception as e:
+            logging.warning(f"Attempt {attempt}: Transaction failed with error: {str(e)}")
+
+            if attempt < retries:
+                gas_price = int(gas_price * 1.1)  # Increase gas price by 10% for the next attempt
+                logging.info(f"Increasing gas price to {gas_price} for retry {attempt + 1}")
+            else:
+                logging.error("Max retries reached. Transaction failed.")
+                raise  # Re-raise the exception if retries are exhausted
 
 
 class INISwapper:
@@ -210,7 +228,7 @@ class INISwapper:
         min_ini_out = self.calculate_min_ini_output(amount_usdt)
 
         logging.info(
-            f"Swapping {Web3.from_wei(amount_usdt, 'ether')} USDT -> {Web3.from_wei(min_ini_out, 'ether')} INI")
+            f"Account {short_address(self.wallet_address)}: Swapping {Web3.from_wei(amount_usdt, 'ether')} USDT -> {Web3.from_wei(min_ini_out, 'ether')} INI")
 
         # First approve USDT spending
         self.approve_usdt(amount_usdt)
@@ -265,7 +283,7 @@ class INISwapper:
         min_usdt_out = self.calculate_min_output(amount_ini)
 
         logging.info(
-            f"Swapping {Web3.from_wei(amount_ini, 'ether')} INI -> {Web3.from_wei(min_usdt_out, 'ether')} USDT")
+            f"Account {self.wallet_address}: Swapping {Web3.from_wei(amount_ini, 'ether')} INI -> {Web3.from_wei(min_usdt_out, 'ether')} USDT")
 
         premium = 10
         for attempt in range(max_retries):
@@ -307,7 +325,7 @@ class INISwapper:
                 raise e
 
 
-async def swap_ini(private_key):
+def swap_ini(private_key):
     # Your testnet network URL
 
     # Get sender address from private key
@@ -320,14 +338,14 @@ async def swap_ini(private_key):
     amount = random.randint(1, 100)
     amount_ini = Web3.to_wei(Decimal(f'0.0000001{amount}'), 'ether')
 
-    result = await swapper.swap_usdt_to_ini(amount_ini)
+    result = swapper.swap_usdt_to_ini(amount_ini)
     if dict(result)['status'] == 1:
         logging.info(
             f"Account {short_address(wallet_address)}: USDT -> INI Swap successful!")
         return
     else:
         logging.error(f"Account {short_address(wallet_address)}: USDT -> INI Swap failed")
-        result = await swapper.swap_ini_to_usdt(amount_ini)
+        result = swapper.swap_ini_to_usdt(amount_ini)
         if dict(result)['status'] == 1:
             logging.info(
                 f"Account {short_address(wallet_address)}: INI -> USDT Swap successful!")
@@ -354,8 +372,8 @@ def get_swap_info(wallet_address):
 def get_checkin_info(wallet_address):
     daily_task_info = get_task_status(wallet_address)['dailyTaskInfo']
     days = daily_task_info[0]['days']
-    completeDays = daily_task_info[0]['completeDays']
-    checkin_count = f"{completeDays}/{days}"
+    complete_days = daily_task_info[0]['completeDays']
+    checkin_count = f"{complete_days}/{days}"
     checkin_timestamp = daily_task_info[0]['time']
     return checkin_count, checkin_timestamp
 
@@ -463,7 +481,7 @@ async def swap_tokens(private_key):
             time_left = get_time_left(swap_time) + (10 * 60)
 
             if time_left < 0:
-                await swap_ini(private_key)  # it takes time to return response
+                swap_ini(private_key)
                 await asyncio.sleep(30)  # pause for swap to update
                 swap_count, swap_time = get_swap_info(wallet_address)
                 logging.info(f"Account {abridged_address}: Swap Count {swap_count}")
@@ -502,7 +520,7 @@ async def additional_task(private_key):
         else:
             logging.info(f'Account {short_address(wallet_address)}: Task already completed')
 
-    await asyncio.sleep(60 * 60 * 8)
+    await asyncio.sleep(60 * 60 * 2)
 
 
 async def send_tokens(private_key):
@@ -511,8 +529,9 @@ async def send_tokens(private_key):
     abridged_address = short_address(wallet_address)
 
     while True:
+        new_address = generate_new_eth_address()
         try:
-            tx = send_testnet_eth(private_key, '0xD4Ef745A929F51e7c81C1652215afe51d04B3c43', 0.000000001)
+            tx = send_testnet_eth(private_key, new_address, 0.000001)
             logging.info(f"Account {abridged_address}: Send Token Successful!")
             await asyncio.sleep(60 * 2)
         except Exception as e:
