@@ -9,16 +9,8 @@ A Python-based bot for interacting with the InitVerse testnet. Automate tasks li
 1. **Create an Account on InitVerse**
    - Visit [InitVerse Candy](https://candy.inichain.com/) and connect your wallet.
    - Link your social accounts and complete the "Start Here" task.
-   - Join the miner pool.
-
-2. **Configuration**
-   - Create a `config.json` file in the project directory with the following structure:
-     ```json
-     {
-       "private_keys": ["private_key1", "private_key2"]
-     }
-     ```
-   - Replace `private_key1` and `private_key2` with your private keys.
+   - Join the [miner pool](https://inichain.gitbook.io/initverseinichain/inichain/mining) the operating system of your choice.
+   - Get INI test token from [faucet](https://faucet-testnet.inichain.com/).
 
 ### Setup
 
@@ -48,6 +40,15 @@ source venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
+
+#### 4. Configuration
+   - Create a `config.json` file in the project directory with the following structure:
+     ```json
+     {
+       "private_keys": ["private_key1", "private_key2"]
+     }
+     ```
+   - Replace `private_key1` and `private_key2` with your private keys.
 
 #### 4. Run the Bot
 ```bash
