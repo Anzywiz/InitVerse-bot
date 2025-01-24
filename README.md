@@ -62,6 +62,8 @@ python main.py
 - Interacts with the InitVerse testnet
 - Periodically performs additional tasks
 
+## Issues
+If you enconter any issues, please do let me know
 
 ## License
 
