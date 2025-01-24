@@ -531,8 +531,8 @@ async def additional_task(private_key):
             for task, url in tasks_and_urls:
                 if not task:  # If the task is not yet performed
                     perform_task(url, wallet_address)
-                else:
-                    logging.info(f'Account {short_address(wallet_address)}: Task already completed')
+                # else:
+                    # logging.info(f'Account {short_address(wallet_address)}: Task already completed')
             await asyncio.sleep(60 * 60 * 2)
         except Exception as e:
             wallet_address = web3.eth.account.from_key(private_key).address
