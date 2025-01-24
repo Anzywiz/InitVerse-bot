@@ -446,7 +446,7 @@ def perform_daily_checkin(private_key, max_retries=3):
             logging.info(f"Account {abridged_address}: Check-in transaction pending...")
 
             # Wait for transaction receipt
-            receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
+            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
 
             if dict(receipt)['status'] != 1:
                 raise Exception(f"Account {abridged_address}: Check-in transaction failed")
