@@ -325,7 +325,8 @@ class INISwapper:
                 raise e
 
 
-async def swap_ini(private_key):
+def swap_ini(private_key):
+
     # Get sender address from private key
     wallet_address = web3.eth.account.from_key(private_key).address
 
@@ -336,22 +337,20 @@ async def swap_ini(private_key):
     amount = random.randint(1, 100)
     amount_ini = Web3.to_wei(Decimal(f'0.0000001{amount}'), 'ether')
 
-    try:
-        result = await asyncio.to_thread(swapper.swap_usdt_to_ini, amount_ini)
+    result = swapper.swap_usdt_to_ini(amount_ini)
+    if dict(result)['status'] == 1:
+        logging.info(
+            f"Account {short_address(wallet_address)}: USDT -> INI Swap successful!")
+        return
+    else:
+        logging.error(f"Account {short_address(wallet_address)}: USDT -> INI Swap failed")
+        result = swapper.swap_ini_to_usdt(amount_ini)
         if dict(result)['status'] == 1:
-            logging.info(f"Account {short_address(wallet_address)}: USDT -> INI Swap successful!")
+            logging.info(
+                f"Account {short_address(wallet_address)}: INI -> USDT Swap successful!")
             return
-
-        # If first swap fails, try swap_ini_to_usdt
-        result = await asyncio.to_thread(swapper.swap_ini_to_usdt, amount_ini)
-        if dict(result)['status'] == 1:
-            logging.info(f"Account {short_address(wallet_address)}: INI -> USDT Swap successful!")
-            return
-
-        logging.error(f"Account {short_address(wallet_address)}: Both swap attempts failed")
-
-    except Exception as e:
-        logging.error(f"Swap error for {short_address(wallet_address)}: {e}")
+        else:
+            logging.error(f"Account {short_address(wallet_address)}: INI -> USDT Swap failed")
 
 
 def get_task_status(wallet_address):
@@ -489,7 +488,7 @@ async def swap_tokens(private_key):
             time_left = get_time_left(swap_time) + (10 * 60)
             display_time_left = convert_time_left(time_left)
             if time_left < 0:
-                await swap_ini(private_key)
+                swap_ini(private_key)
                 await asyncio.sleep(30)  # pause for swap to update
                 points = get_user_info(wallet_address)['info']['points']
                 swap_count, swap_time = get_swap_info(wallet_address)
