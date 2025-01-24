@@ -507,20 +507,25 @@ def perform_task(url, address):
 
 
 async def additional_task(private_key):
-    wallet_address = web3.eth.account.from_key(private_key).address
-    additional_tasks = get_task_status(wallet_address)["additionalTaskInfo"]
-    additional_tasks_urls = ['https://candyapi.inichain.com/airdrop/v1/twitter/like',
-                             'https://candyapi.inichain.com/airdrop/v1/twitter/retweet',
-                             'https://candyapi.inichain.com/airdrop/v1/twitter/quote',
-                             'https://candyapi.inichain.com/airdrop/v1/twitter/reply']
-    tasks_and_urls = list(zip(additional_tasks, additional_tasks_urls))
-    for task, url in tasks_and_urls:
-        if not task:  # If the task is not yet performed
-            perform_task(url, wallet_address)
-        else:
-            logging.info(f'Account {short_address(wallet_address)}: Task already completed')
+    while True:
+        try:
+            wallet_address = web3.eth.account.from_key(private_key).address
+            additional_tasks = get_task_status(wallet_address)["additionalTaskInfo"]
+            additional_tasks_urls = ['https://candyapi.inichain.com/airdrop/v1/twitter/like',
+                                     'https://candyapi.inichain.com/airdrop/v1/twitter/retweet',
+                                     'https://candyapi.inichain.com/airdrop/v1/twitter/quote',
+                                     'https://candyapi.inichain.com/airdrop/v1/twitter/reply']
+            tasks_and_urls = list(zip(additional_tasks, additional_tasks_urls))
+            for task, url in tasks_and_urls:
+                if not task:  # If the task is not yet performed
+                    perform_task(url, wallet_address)
+                else:
+                    logging.info(f'Account {short_address(wallet_address)}: Task already completed')
 
-    await asyncio.sleep(60 * 60 * 2)
+            await asyncio.sleep(60 * 60 * 2)
+        except Exception as e:
+            wallet_address = web3.eth.account.from_key(private_key).address
+            logging.error(f'Account {short_address(wallet_address)}: Daily check-in error {e}')
 
 
 async def send_tokens(private_key):
