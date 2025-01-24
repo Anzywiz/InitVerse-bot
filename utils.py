@@ -325,9 +325,7 @@ class INISwapper:
                 raise e
 
 
-def swap_ini(private_key):
-    # Your testnet network URL
-
+async def swap_ini(private_key):
     # Get sender address from private key
     wallet_address = web3.eth.account.from_key(private_key).address
 
@@ -338,20 +336,22 @@ def swap_ini(private_key):
     amount = random.randint(1, 100)
     amount_ini = Web3.to_wei(Decimal(f'0.0000001{amount}'), 'ether')
 
-    result = swapper.swap_usdt_to_ini(amount_ini)
-    if dict(result)['status'] == 1:
-        logging.info(
-            f"Account {short_address(wallet_address)}: USDT -> INI Swap successful!")
-        return
-    else:
-        logging.error(f"Account {short_address(wallet_address)}: USDT -> INI Swap failed")
-        result = swapper.swap_ini_to_usdt(amount_ini)
+    try:
+        result = await asyncio.to_thread(swapper.swap_usdt_to_ini, amount_ini)
         if dict(result)['status'] == 1:
-            logging.info(
-                f"Account {short_address(wallet_address)}: INI -> USDT Swap successful!")
+            logging.info(f"Account {short_address(wallet_address)}: USDT -> INI Swap successful!")
             return
-        else:
-            logging.error(f"Account {short_address(wallet_address)}: INI -> USDT Swap failed")
+
+        # If first swap fails, try swap_ini_to_usdt
+        result = await asyncio.to_thread(swapper.swap_ini_to_usdt, amount_ini)
+        if dict(result)['status'] == 1:
+            logging.info(f"Account {short_address(wallet_address)}: INI -> USDT Swap successful!")
+            return
+
+        logging.error(f"Account {short_address(wallet_address)}: Both swap attempts failed")
+
+    except Exception as e:
+        logging.error(f"Swap error for {short_address(wallet_address)}: {e}")
 
 
 def get_task_status(wallet_address):
@@ -395,7 +395,6 @@ def perform_daily_checkin(private_key, max_retries=3):
     """
     Performs INI daily check-in process including transaction and message signing.
     Args:
-        web3: Web3 instance connected to INI network
         private_key: Account private key
         max_retries: Maximum retry attempts for failed transactions
     Returns:
@@ -480,27 +479,24 @@ def perform_daily_checkin(private_key, max_retries=3):
 
 
 async def swap_tokens(private_key):
+    wallet_address = web3.eth.account.from_key(private_key).address
+    abridged_address = short_address(wallet_address)
     while True:
         try:
-            wallet_address = web3.eth.account.from_key(private_key).address
-            abridged_address = short_address(wallet_address)
-
             swap_count, swap_time = get_swap_info(wallet_address)
             points = get_user_info(wallet_address)['info']['points']
             logging.info(f"Account {abridged_address}: Swap Count {swap_count}. Points {points}")
-
             time_left = get_time_left(swap_time) + (10 * 60)
-
+            display_time_left = convert_time_left(time_left)
             if time_left < 0:
-                swap_ini(private_key) # swap ini
+                await swap_ini(private_key)
                 await asyncio.sleep(30)  # pause for swap to update
                 points = get_user_info(wallet_address)['info']['points']
                 swap_count, swap_time = get_swap_info(wallet_address)
                 logging.info(f"Account {abridged_address}: Swap Count {swap_count}. Points {points}")
             else:
-                logging.info(f"Account {abridged_address}: Swap wait time: {time_left} seconds ...")
+                logging.info(f"Account {abridged_address}: Swap wait time: {display_time_left} ...")
                 await asyncio.sleep(time_left)
-
         except Exception as e:
             logging.error(f'Account {abridged_address}: Swap failed \n{e}')
             await asyncio.sleep(10)
@@ -554,16 +550,34 @@ async def send_tokens(private_key):
             logging.error(f"Account {abridged_address}: Error when sending token \n{e}")
 
 
+def convert_time_left(time_left):
+    """
+    convert to human readable time
+    :param time_left:
+    :return:
+    """
+
+    hours = int(time_left / 3600)
+    minutes = int((time_left % 3600) / 60)
+    seconds = int(time_left % 60)
+
+    display_time_left = f"{hours} Hours {minutes} Mins" if hours > 0 else \
+        f"{minutes} Minutes {seconds} Secs" if minutes > 0 else \
+            f"{seconds} Seconds"
+
+    return display_time_left
+
+
 # Function 3: Daily check-in every 24 hours
 async def daily_check_in(private_key):
+    wallet_address = web3.eth.account.from_key(private_key).address
+    abridged_address = short_address(wallet_address)
     while True:
         try:
-            wallet_address = web3.eth.account.from_key(private_key).address
-            abridged_address = short_address(wallet_address)
-
             checkin_count, checkin_time = get_checkin_info(wallet_address)
             time_left = get_time_left(checkin_time) + (60 * 60 * 24)
-            display_time_left = f"{time_left} seconds" if time_left < 3600 else f"{int(time_left/3600)} Hours"
+
+            display_time_left = convert_time_left(time_left)
 
             if time_left < 0:
                 logging.info(f"Account {abridged_address}: Performing daily check-in...")
