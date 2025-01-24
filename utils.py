@@ -362,6 +362,14 @@ def get_task_status(wallet_address):
         return data
 
 
+def get_user_info(wallet_address):
+    url = f'https://candyapi.inichain.com/airdrop/v1/user/userInfo?address={wallet_address}'
+    r = requests.get(url)
+    if r.status_code == 200:
+        data = r.json()["data"]
+        return data
+
+
 def get_swap_info(wallet_address):
     daily_task_info = get_task_status(wallet_address)['dailyTaskInfo']
     swap_count = daily_task_info[1]['count']
@@ -478,13 +486,17 @@ async def swap_tokens(private_key):
             abridged_address = short_address(wallet_address)
 
             swap_count, swap_time = get_swap_info(wallet_address)
+            points = get_user_info(wallet_address)['info']['points']
+            logging.info(f"Account {abridged_address}: Swap Count {swap_count}. Points {points}")
+
             time_left = get_time_left(swap_time) + (10 * 60)
 
             if time_left < 0:
-                swap_ini(private_key)
+                swap_ini(private_key) # swap ini
                 await asyncio.sleep(30)  # pause for swap to update
+                points = get_user_info(wallet_address)['info']['points']
                 swap_count, swap_time = get_swap_info(wallet_address)
-                logging.info(f"Account {abridged_address}: Swap Count {swap_count}")
+                logging.info(f"Account {abridged_address}: Swap Count {swap_count}. Points {points}")
             else:
                 logging.info(f"Account {abridged_address}: Swap wait time: {time_left} seconds ...")
                 await asyncio.sleep(time_left)
