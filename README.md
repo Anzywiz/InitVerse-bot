@@ -1,6 +1,9 @@
 # InitVerse Bot
+⚠️ The script have been Revamped for mainnet Tasks
 
-A Python-based bot for interacting with the InitVerse testnet. Automate tasks like daily check-ins, token swapping, interacting with the testnet, and completing additional periodic tasks.
+If you find this library useful, consider starring this repository⭐️
+
+A Python-based bot for interacting with the InitVerse mainnet. Automate task like performing trades and completing additional periodic twitter tasks.
 
 ## Getting Started
 
@@ -9,8 +12,8 @@ A Python-based bot for interacting with the InitVerse testnet. Automate tasks li
 1. **Create an Account on InitVerse**
    - Visit [InitVerse Candy](https://candy.inichain.com/) and connect your wallet.
    - Link your social accounts and complete the "Start Here" task.
-   - Join the [miner pool](https://inichain.gitbook.io/initverseinichain/inichain/mining) with the operating system of your choice.
-   - Get INI test token from [faucet](https://faucet-testnet.inichain.com/).
+   - Join the [miner pool](https://inichain.gitbook.io/initverseinichain/inichain/mining-mainnet) with the operating system of your choice(Windows/Linux).
+   - Get INI token by mining or receiving from someone.
 
 ### Setup
 
@@ -63,7 +66,7 @@ python main.py
 - Periodically performs additional tasks
 
 ## Issues
-If you enconter any issues, please do let me know
+If you enconter any issues, please do let me know in [issues]()
 
 ## License
 
