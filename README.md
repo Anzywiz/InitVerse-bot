@@ -1,8 +1,7 @@
----
 
-# InitVerse Bot  
+# InitVerse Mainnet Bot  
 
-⚠️ **The script has been revamped for mainnet tasks!**  
+⚠️ **The script previously for the testnet tasks has been revamped for mainnet tasks!**  
 
 If you find this library useful, please consider starring this repository ⭐️  
 
