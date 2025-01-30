@@ -66,7 +66,7 @@ python main.py
 - Periodically performs additional tasks
 
 ## Issues
-If you enconter any issues, please do let me know in [issues]()
+If you enconter any issues, please do let me know in [issues](https://github.com/Anzywiz/InitVerse-bot/issues)
 
 ## License
 
