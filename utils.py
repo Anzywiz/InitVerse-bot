@@ -186,37 +186,78 @@ def perform_task(url, address):
         logging.error(f"Account {short_address(address)}: Additional Tasks - {message}")
 
 
-async def send_tokens(private_key):
-    # Initialize Web3 with the provided RPC URL
+async def additional_task(private_key):
     wallet_address = web3.eth.account.from_key(private_key).address
-    abridged_address = short_address(wallet_address)
+    print(list_tasks(wallet_address))
+    additional_tasks = list_tasks(wallet_address)['tasks']['additional']
+    for task in additional_tasks:
+        tweet_id = task['link']
+        task_title = task['title'].split(' ')[0].lower()
+        is_performed_task = task['flag']
 
-    # get trades
-    list_tasks_data = list_tasks(wallet_address)
-    day_trading_count = int(list_tasks_data['dayTradingCount'])
-    trades = list_tasks_data['tasks']['dailyTask'][0]['tag']
-    trade_count = int(trades.split('/')[0])
-    trade_left = day_trading_count - trade_count
+        if not is_performed_task:
+            print(f"tweet_id: {tweet_id},"
+                  f"task: {task_title},"
+                  )
 
-    for _ in range(trade_left):
-        new_address = generate_new_eth_address()
+    # while True:
+    #     try:
+
+
+        #     additional_tasks_urls = [
+        #         f'{BASE_URL}/twitter/like',
+        #         f'{BASE_URL}twitter/retweet',
+        #         f'{BASE_URL}/twitter/reply',
+        #         f'{BASE_URL}/twitter/quote'
+        #     ]
+        #     additional_tasks = []
+        #     tasks_and_urls = list(zip(additional_tasks, additional_tasks_urls))
+        #     for task, url in tasks_and_urls:
+        #         if not task:  # If the task is not yet performed
+        #             perform_task(url, wallet_address)
+        #         # else:
+        #             # logging.info(f'Account {short_address(wallet_address)}: Task already completed')
+        #     await asyncio.sleep(60 * 60 * 2)
+        # except Exception as e:
+        #     wallet_address = web3.eth.account.from_key(private_key).address
+        #     logging.error(f'Account {short_address(wallet_address)}: Twitter additional tasks failed. {e}')
+
+
+async def send_tokens(private_key):
+    while True:
         try:
+            wallet_address = web3.eth.account.from_key(private_key).address
+            abridged_address = short_address(wallet_address)
+
+            # get trades
+            list_tasks_data = list_tasks(wallet_address)
+            day_trading_count = int(list_tasks_data['dayTradingCount'])
+            trades = list_tasks_data['tasks']['dailyTask'][0]['tag']
+            trade_count = int(trades.split('/')[0])
+            trade_left = day_trading_count - trade_count
+
+            for _ in range(trade_left):
+                new_address = generate_new_eth_address()
+                try:
+                    # points
+                    points = get_user_info(wallet_address)['points']
+                    logging.info(
+                        f"Account {abridged_address}: Prepping to send tokens...Trades ({trades}). Points {points}")
+                    tx = send_testnet_eth(private_key, new_address, 0.000001)
+                    logging.info(f"Account {abridged_address}: Send Token Successful!")
+
+                    await asyncio.sleep(60 * 1)
+                    # get updated trades
+                    trades = list_tasks(wallet_address)['tasks']['dailyTask'][0]['tag']
+                except Exception as e:
+                    logging.error(f"Account {abridged_address}: Error when sending token \n{e}")
+                    await asyncio.sleep(30)
             # points
             points = get_user_info(wallet_address)['points']
-            logging.info(f"Account {abridged_address}: Prepping to send tokens...Trades ({trades}). Points {points}")
-            tx = send_testnet_eth(private_key, new_address, 0.000001)
-            logging.info(f"Account {abridged_address}: Send Token Successful!")
-
-            await asyncio.sleep(60 * 1)
-            # get updated trades
-            trades = list_tasks(wallet_address)['tasks']['dailyTask'][0]['tag']
+            logging.info(f"Account {abridged_address}: Trading complete. Trades ({trades}). Points {points}")
+            await asyncio.sleep(60 * 60 * 6)
         except Exception as e:
-            logging.error(f"Account {abridged_address}: Error when sending token \n{e}")
-            await asyncio.sleep(30)
-    # points
-    points = get_user_info(wallet_address)['points']
-    logging.info(f"Account {abridged_address}: Trading complete. Trades ({trades}). Points {points}")
-    await asyncio.sleep(60 * 60 * 6)
+            logging.error(f"Account {abridged_address}: Error during trading {e}\nStarting all over")
 
 
 def convert_time_left(time_left):
