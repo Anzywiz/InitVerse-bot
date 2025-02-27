@@ -1,70 +1,31 @@
-import requests
 import logging
-from datetime import datetime
 from web3 import Web3
 from eth_account import Account
-from eth_account.messages import encode_defunct
-import random
-import time
-from decimal import Decimal
 import asyncio
-import colorlog
-
-formatter = colorlog.ColoredFormatter(
-    '%(log_color)s%(levelname)s: %(asctime)s: %(message)s',
-    log_colors={
-        'DEBUG': 'green',
-        'INFO': 'cyan',
-        'WARNING': 'yellow',
-        'ERROR': 'red',
-        'CRITICAL': 'red,bg_white'
-    },
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
-handler = colorlog.StreamHandler()
-handler.setFormatter(formatter)
-
-logger = colorlog.getLogger()
-logger.addHandler(handler)
-logger.setLevel(colorlog.INFO)
+from headers import headers
+from playwright.async_api import async_playwright
+import json
 
 
-def get_random_user_agent():
-    base_user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/{webkit_version} (KHTML, like Gecko) Chrome/{chrome_version} Safari/{webkit_version}",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/{webkit_version} (KHTML, like Gecko) Chrome/{chrome_version} Safari/{webkit_version}",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/{webkit_version} (KHTML, like Gecko) Chrome/{chrome_version} Safari/{webkit_version}",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/{webkit_version} (KHTML, like Gecko) Firefox/{firefox_version}",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:{firefox_version}) Gecko/20100101 Firefox/{firefox_version}",
-    ]
-
-    webkit_version = f"{random.randint(500, 600)}.{random.randint(0, 50)}"
-    chrome_version = f"{random.randint(80, 100)}.0.{random.randint(4000, 5000)}.{random.randint(100, 150)}"
-    firefox_version = f"{random.randint(80, 100)}.0"
-
-    user_agent = random.choice(base_user_agents).format(
-        webkit_version=webkit_version,
-        chrome_version=chrome_version,
-        firefox_version=firefox_version
-    )
-
-    return user_agent
+try:
+    # Load data from the JSON file
+    with open('config.json', "r") as file:
+        data = json.load(file)
+except FileNotFoundError:
+    raise FileNotFoundError(f"config.json file does not exist. Create one")
+except json.JSONDecodeError:
+    raise ValueError(f"The config file is not a valid JSON file.")
 
 
-headers = {
-    "accept": "application/json, text/plain, */*",
-    "accept-language": "en-US,en;q=0.9",
-    "content-type": "application/json",
-    "priority": "u=1, i",
-    "sec-ch-ua": "\"Microsoft Edge\";v=\"129\", \"Not=A?Brand\";v=\"8\", \"Chromium\";v=\"129\"",
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": "\"Windows\"",
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "user-agent": get_random_user_agent()
-}
+timeout_after_trades = data['timeout_after_trades']
+timeout_within_trades = data['timeout_within_trades']
+send_amount = data['send_amount']
+
+
+RPC_URL = 'http://rpc-mainnet.inichain.com'
+BASE_URL = 'https://candyapi-mainnet.inichain.com/airdrop/api/v1'
+
+web3 = Web3(Web3.HTTPProvider(RPC_URL))
 
 
 def short_address(wallet_address):
@@ -72,36 +33,11 @@ def short_address(wallet_address):
     return address
 
 
-def get_time_left(target_timestamp):
-    current_timestamp = int(datetime.now().timestamp())
-    return target_timestamp - current_timestamp
-
-
 def generate_new_eth_address():
     # Generate a new Ethereum account
     account = Account.create()
     # Return the address and private key
     return account.address
-
-
-RPC_URL = 'https://rpc-mainnet.inichain.com'
-BASE_URL = 'https://candyapi-mainnet.inichain.com/airdrop/api/v1'
-
-# First test the RPC endpoint with a simple request
-try:
-    response = requests.post(
-        RPC_URL, json={"jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": 1}, timeout=5)
-    logging.info(f"RPC Response: {response.status_code}")
-except Exception as e:
-    raise Exception(f"Failed to connect to RPC: {e}")
-
-# Then try Web3
-try:
-    web3 = Web3(Web3.HTTPProvider(RPC_URL))
-    connected = web3.is_connected()
-    logging.info(f"Web3 connected: {connected}")
-except Exception as e:
-    print(f"Web3 connection error: {e}")
 
 
 def send_testnet_eth(private_key: str, receiver_address: str, amount_in_ether: float, retries: int = 3):
@@ -156,126 +92,87 @@ def send_testnet_eth(private_key: str, receiver_address: str, amount_in_ether: f
                 raise e  # Re-raise the exception if retries are exhausted
 
 
-def list_tasks(wallet_address):
-    url = f"{BASE_URL}/task/list"
-    headers['address'] = wallet_address
-    r = requests.get(url, headers=headers)
-    if r.status_code == 200:
-        data = r.json()['data']
-        return data
+async def requests_via_playwright(url, wallet_address):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context()
+        page = await context.new_page()
+
+        # Set headers
+        headers['address'] = wallet_address
+        await page.set_extra_http_headers(headers)
+
+        response = await page.goto(url)
+
+        if response.status == 200:
+            body = await response.body()
+            data = json.loads(body)
+            data = data['data']
+            await browser.close()
+            return data
+        else:
+            text = await response.text()
+            await browser.close()
+            raise Exception(f"Possible Cloudflare blockade")
 
 
-def get_user_info(wallet_address):
+async def list_tasks(wallet_address):
+    url = f"{BASE_URL}/task/list?address={wallet_address}"
+    response_data = await requests_via_playwright(url, wallet_address)
+    return response_data
+
+
+async def get_user_info(wallet_address):
     url = f'{BASE_URL}/user/userInfo?address={wallet_address}'
-    headers['address'] = wallet_address
-    r = requests.get(url, headers=headers)
-    if r.status_code == 200:
-        data = r.json()["data"]
-        return data
+    response_data = await requests_via_playwright(url, wallet_address)
+    return response_data
 
 
-def perform_task(url, address):
-    task = url.split('/')[-1]
-    data = {'address': address}
-    r = requests.post(url, data=data)
-    status = r.json()['status']
-    message = r.json()['message']
-    if status:
-        logging.info(f"Account {short_address(address)}: Additional Task {task} - Completed successfully")
-    else:
-        logging.error(f"Account {short_address(address)}: Additional Tasks - {message}")
+async def get_points_trades(wallet_address):
+    # get trades
+    list_tasks_data = await list_tasks(wallet_address)
+    day_trading_count = int(list_tasks_data['dayTradingCount'])
+    trades = list_tasks_data['tasks']['dailyTask'][0]['tag']
+    trade_count = int(trades.split('/')[0])
+    trade_left = day_trading_count - trade_count
 
+    # points
+    points = await get_user_info(wallet_address)
+    points = points['points']
 
-async def additional_task(private_key):
-    wallet_address = web3.eth.account.from_key(private_key).address
-    print(list_tasks(wallet_address))
-    additional_tasks = list_tasks(wallet_address)['tasks']['additional']
-    for task in additional_tasks:
-        tweet_id = task['link']
-        task_title = task['title'].split(' ')[0].lower()
-        is_performed_task = task['flag']
-
-        if not is_performed_task:
-            print(f"tweet_id: {tweet_id},"
-                  f"task: {task_title},"
-                  )
-
-    # while True:
-    #     try:
-
-
-        #     additional_tasks_urls = [
-        #         f'{BASE_URL}/twitter/like',
-        #         f'{BASE_URL}twitter/retweet',
-        #         f'{BASE_URL}/twitter/reply',
-        #         f'{BASE_URL}/twitter/quote'
-        #     ]
-        #     additional_tasks = []
-        #     tasks_and_urls = list(zip(additional_tasks, additional_tasks_urls))
-        #     for task, url in tasks_and_urls:
-        #         if not task:  # If the task is not yet performed
-        #             perform_task(url, wallet_address)
-        #         # else:
-        #             # logging.info(f'Account {short_address(wallet_address)}: Task already completed')
-        #     await asyncio.sleep(60 * 60 * 2)
-        # except Exception as e:
-        #     wallet_address = web3.eth.account.from_key(private_key).address
-        #     logging.error(f'Account {short_address(wallet_address)}: Twitter additional tasks failed. {e}')
+    return trade_left, trade_count, points
 
 
 async def send_tokens(private_key):
-    while True:
+    wallet_address = web3.eth.account.from_key(private_key).address
+    abridged_address = short_address(wallet_address)
+    while True:  # infinite loop
         try:
             wallet_address = web3.eth.account.from_key(private_key).address
             abridged_address = short_address(wallet_address)
 
-            # get trades
-            list_tasks_data = list_tasks(wallet_address)
-            day_trading_count = int(list_tasks_data['dayTradingCount'])
-            trades = list_tasks_data['tasks']['dailyTask'][0]['tag']
-            trade_count = int(trades.split('/')[0])
-            trade_left = day_trading_count - trade_count
+            trade_left, trade_count, points = await get_points_trades(wallet_address)
+            logging.info(f"Account {abridged_address}: Trades {trade_count}. Points {points}")
 
             for _ in range(trade_left):
                 new_address = generate_new_eth_address()
                 try:
-                    # points
-                    points = get_user_info(wallet_address)['points']
-                    logging.info(
-                        f"Account {abridged_address}: Prepping to send tokens...Trades ({trades}). Points {points}")
-                    tx = send_testnet_eth(private_key, new_address, 0.000001)
-                    logging.info(f"Account {abridged_address}: Send Token Successful!")
+                    logging.info(f"Account {abridged_address}: Prepping to send tokens...")
+                    tx = send_testnet_eth(private_key, new_address, send_amount)
+                    logging.info(f"Account {abridged_address}: Send Token Successful! Tx Hash: {tx}")
+                    await asyncio.sleep(timeout_within_trades)
 
-                    await asyncio.sleep(60 * 1)
-                    # get updated trades
-                    trades = list_tasks(wallet_address)['tasks']['dailyTask'][0]['tag']
                 except Exception as e:
                     logging.error(f"Account {abridged_address}: Error when sending token \n{e}")
                     await asyncio.sleep(30)
-            # points
-            points = get_user_info(wallet_address)['points']
-            logging.info(f"Account {abridged_address}: Trading complete. Trades ({trades}). Points {points}")
-            await asyncio.sleep(60 * 60 * 6)
+
+            trades, trade_count, points = await get_points_trades(wallet_address)
+            logging.info(f"Account {abridged_address}: Trading complete. Trades ({trade_count}/10). Points {points}")
+            logging.info(f"Account {abridged_address}: Waiting {timeout_after_trades} hrs till next trade")
+            await asyncio.sleep(60 * 60 * timeout_after_trades)
+
         except Exception as e:
-            logging.error(f"Account {abridged_address}: Error during trading {e}\nStarting all over")
-
-
-def convert_time_left(time_left):
-    """
-    convert to human readable time
-    :param time_left:
-    :return:
-    """
-
-    hours = int(time_left / 3600)
-    minutes = int((time_left % 3600) / 60)
-    seconds = int(time_left % 60)
-
-    display_time_left = f"{hours} Hours {minutes} Mins" if hours > 0 else \
-        f"{minutes} Minutes {seconds} Secs" if minutes > 0 else \
-            f"{seconds} Seconds"
-
-    return display_time_left
+            logging.error(f"Account {abridged_address}: Error during trades. {e}. Restarting")
 
 
 # Run tasks for all private keys concurrently
@@ -285,7 +182,6 @@ async def run_all(private_keys: list):
         tasks.append(asyncio.gather(
 
             send_tokens(private_key),
-            # additional_task(private_key)
         ))
 
     # Run all tasks concurrently
