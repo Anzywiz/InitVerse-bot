@@ -6,6 +6,13 @@ If you find this project useful, please consider starring the repository ⭐️
 
 A Python-based bot for interacting with the InitVerse mainnet. It automates tasks such as performing trades, completing periodic Twitter tasks, and supporting multi-account farming with proxy integration.
 
+## ✨ Features
+
+- 🤖 Automated daily trading
+- 🐦 Periodic Twitter tasks
+- 🔄 Multi-account trading/farming
+- 🛡️ Proxy support for enhanced security and anonymity
+
 ## 🔰 Getting Started
 
 ### ✅ Prerequisites
@@ -68,13 +75,6 @@ Replace `your_private_key1` with your actual private key. You can add multiple p
 ```bash
 python main.py
 ```
-
-## ✨ Features
-
-- 🤖 Automated daily trading
-- 🐦 Periodic Twitter tasks
-- 🔄 Multi-account trading/farming
-- 🛡️ Proxy support for enhanced security and anonymity
 
 ## 🛠️ Issues & Contributions
 
