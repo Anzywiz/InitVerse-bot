@@ -17,15 +17,19 @@ except json.JSONDecodeError:
     raise ValueError(f"The config file is not a valid JSON file.")
 
 
-timeout_after_trades = data['timeout_after_trades']
-timeout_within_trades = data['timeout_within_trades']
+timeout_between_trades_in_sec = data['timeout_between_trades_in_sec']
+timeout_after_trades_in_hrs = data['timeout_after_trades_in_hrs']
 send_amount = data['send_amount']
+proxies = data["proxies"]
 
 
-RPC_URL = 'http://rpc-mainnet.inichain.com'
+RPC_URL = 'http://rpc-mainnet.inichain.com/'
 BASE_URL = 'https://candyapi-mainnet.inichain.com/airdrop/api/v1'
 
-web3 = Web3(Web3.HTTPProvider(RPC_URL))
+if proxies:
+    web3 = Web3(Web3.HTTPProvider(RPC_URL, request_kwargs={"proxies": {'https': proxies, 'http': proxies}}))
+else:
+    web3 = Web3(Web3.HTTPProvider(RPC_URL))
 
 
 def short_address(wallet_address):
@@ -160,7 +164,7 @@ async def send_tokens(private_key):
                     logging.info(f"Account {abridged_address}: Prepping to send tokens...")
                     tx = send_testnet_eth(private_key, new_address, send_amount)
                     logging.info(f"Account {abridged_address}: Send Token Successful! Tx Hash: {tx}")
-                    await asyncio.sleep(timeout_within_trades)
+                    await asyncio.sleep(timeout_between_trades_in_sec)
 
                 except Exception as e:
                     logging.error(f"Account {abridged_address}: Error when sending token \n{e}")
@@ -168,8 +172,8 @@ async def send_tokens(private_key):
 
             trades, trade_count, points = await get_points_trades(wallet_address)
             logging.info(f"Account {abridged_address}: Trading complete. Trades ({trade_count}/10). Points {points}")
-            logging.info(f"Account {abridged_address}: Waiting {timeout_after_trades} hrs till next trade")
-            await asyncio.sleep(60 * 60 * timeout_after_trades)
+            logging.info(f"Account {abridged_address}: Waiting {timeout_after_trades_in_hrs} hrs till next trade")
+            await asyncio.sleep(60 * 60 * timeout_after_trades_in_hrs)
 
         except Exception as e:
             logging.error(f"Account {abridged_address}: Error during trades. {e}. Restarting")
